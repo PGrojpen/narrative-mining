@@ -1,6 +1,5 @@
 from src.preprocessing.metadata_extraction import load_selected_metadata
 
-
 def main() -> None:
     test_ids = {204, 454, 832}
     metadata = load_selected_metadata(test_ids)
@@ -39,7 +38,6 @@ def main() -> None:
         print(f"Bookshelves sample: {book['bookshelves'][:3]}")
         print(f"LoCC: {book['locc']}")
         print("-" * 60)
-
 
 if __name__ == "__main__":
     main()
