@@ -2,9 +2,8 @@ from pathlib import Path
 import re
 
 from tqdm import tqdm
-from src.config import TARGET_VALID_BOOKS, SEED
+from config import RAW_PATH, TARGET_VALID_BOOKS, SEED
 
-RAW_DIR = Path("data/gutenberg/raw")
 OUTPUT_FILE = Path(f"data/gutenberg/inspection/book_edges_{TARGET_VALID_BOOKS}_seed{SEED}.txt")
 
 BEGINNING_LINES = 50
@@ -87,10 +86,10 @@ def build_file_report(file_path: Path) -> str:
 
 
 def main() -> None:
-    txt_files = sorted(RAW_DIR.glob("*.txt"))
+    txt_files = sorted(RAW_PATH.glob("*.txt"))
 
     if not txt_files:
-        print(f"Nenhum arquivo .txt encontrado em {RAW_DIR}")
+        print(f"Nenhum arquivo .txt encontrado em {RAW_PATH}")
         return
 
     OUTPUT_FILE.parent.mkdir(parents=True, exist_ok=True)
