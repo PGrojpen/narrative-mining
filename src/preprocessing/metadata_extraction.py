@@ -1,10 +1,7 @@
 import csv
 
 from pathlib import Path
-
-
-CATALOG_PATH = Path("data/gutenberg/metadata/pg_catalog.csv")
-
+from config import CATALOG_PATH, RAW_PATH
 
 def normalize(value: str | None) -> str:
     return (value or "").strip()
@@ -15,6 +12,14 @@ def split_multivalue(value: str | None, sep: str = ";") -> list[str]:
     if not value:
         return []
     return [part.strip() for part in value.split(sep) if part.strip()]
+
+
+def get_book_ids_from_folder(folder: Path) -> set[int]:
+    return {
+        int(file_path.stem)
+        for file_path in folder.glob("*.txt")
+        if file_path.stem.isdigit()
+    }
 
 
 def parse_book_metadata(row: dict[str, str]) -> dict:
@@ -31,8 +36,8 @@ def parse_book_metadata(row: dict[str, str]) -> dict:
     }
 
 
-def load_selected_metadata(selected_ids: set[int], catalog_path: Path = CATALOG_PATH,) -> dict[int, dict]:
-    
+def load_selected_metadata(books_folder: Path = RAW_PATH, catalog_path: Path = CATALOG_PATH,) -> dict[int, dict]:
+    selected_ids = get_book_ids_from_folder(books_folder)
     metadata_by_id: dict[int, dict] = {}
 
     with open(catalog_path, "r", encoding="utf-8", newline="") as f:
@@ -49,6 +54,7 @@ def load_selected_metadata(selected_ids: set[int], catalog_path: Path = CATALOG_
             "Bookshelves",
             "LoCC",
         }
+
         missing = required_columns - set(reader.fieldnames or [])
         if missing:
             raise ValueError(
