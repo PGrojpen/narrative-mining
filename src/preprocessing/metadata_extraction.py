@@ -1,7 +1,7 @@
 import csv
 
 from pathlib import Path
-from config import CATALOG_PATH, RAW_PATH
+from config import METADATA_PATH, RAW_PATH
 
 def normalize(value: str | None) -> str:
     return (value or "").strip()
@@ -36,7 +36,7 @@ def parse_book_metadata(row: dict[str, str]) -> dict:
     }
 
 
-def load_selected_metadata(books_folder: Path = RAW_PATH, catalog_path: Path = CATALOG_PATH,) -> dict[int, dict]:
+def load_selected_metadata(books_folder: Path = RAW_PATH, catalog_path: Path = METADATA_PATH/"pg_catalog.csv",) -> dict[int, dict]:
     selected_ids = get_book_ids_from_folder(books_folder)
     metadata_by_id: dict[int, dict] = {}
 

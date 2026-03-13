@@ -8,11 +8,11 @@ from urllib.error import URLError, HTTPError
 
 from tqdm import tqdm
 
-from config import RAW_PATH, CATALOG_PATH, LANGUAGE, BOOK_TYPE
-
+from config import RAW_PATH, METADATA_PATH, LANGUAGE, BOOK_TYPE
 
 CATALOG_URL = "https://www.gutenberg.org/cache/epub/feeds/pg_catalog.csv"
-BOOK_IDS_PATH = Path("data/gutenberg/books_all_narrative_candidates.txt")
+CATALOG_PATH = METADATA_PATH/"pg_catalog.csv"
+BOOK_IDS_PATH = METADATA_PATH/"books_all_narrative_candidates.txt"
 
 MAX_WORKERS = 12
 MIN_WORD_COUNT = 40000
@@ -22,7 +22,6 @@ USER_AGENT = "NarrativeMining/1.0"
 
 def ensure_dirs() -> None:
     CATALOG_PATH.parent.mkdir(parents=True, exist_ok=True)
-    BOOK_IDS_PATH.parent.mkdir(parents=True, exist_ok=True)
     RAW_PATH.mkdir(parents=True, exist_ok=True)
 
 
