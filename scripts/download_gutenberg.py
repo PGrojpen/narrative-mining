@@ -8,9 +8,11 @@ from urllib.error import URLError, HTTPError
 
 from tqdm import tqdm
 
-from config import RAW_PATH, CATALOG_PATH, BOOK_IDS_PATH, LANGUAGE, BOOK_TYPE
+from config import RAW_PATH, CATALOG_PATH, LANGUAGE, BOOK_TYPE
+
 
 CATALOG_URL = "https://www.gutenberg.org/cache/epub/feeds/pg_catalog.csv"
+BOOK_IDS_PATH = Path("data/gutenberg/books_all_narrative_candidates.txt")
 
 MAX_WORKERS = 12
 MIN_WORD_COUNT = 40000
