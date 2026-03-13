@@ -2,103 +2,166 @@ import re
 from pathlib import Path
 from typing import Optional
 
-OPENING_PATTERN = re.compile(
-    r"^\s*chapter\s+i(?:\s*[\.\:\-]\s*.*)?\s*$",
+
+TOC_WINDOW_NONEMPTY_LINES = 40
+TOC_MIN_CHAPTER_ENTRY_COUNT = 3
+
+OPENING_MIN_RELATIVE_POSITION = 0.0
+OPENING_MAX_RELATIVE_POSITION = 0.05
+CLOSING_MIN_RELATIVE_POSITION = 0.90
+
+
+CHAPTER_I_OPENING_RE = re.compile(
+    r"^\s*chapter\s+i\b(?:\s*[\.\:\-–—_]*\s*.*)?\s*$",
     re.IGNORECASE,
 )
 
-# aceita chapter II, chapter 2, chapter xvi, etc.
-CHAPTER_HEADING_PATTERN = re.compile(
-    r"^\s*chapter\s+(?:[ivxlcdm]+|\d+)(?:\s*[\.\:\-]\s*.*)?\s*$",
+CHAPTER_ENTRY_RE = re.compile(
+    r"^\s*chapter\s+(?:[ivxlcdm]+|\d+)\b(?:\s*[\.\:\-–—_]*\s*.*)?\s*$",
+    re.IGNORECASE,
+)
+
+DISALLOWED_STRUCTURE_RE = re.compile(
+    r"^\s*(?:book|part|letter)\s+(?:[ivxlcdm]+|\d+)\b(?:\s*[\.\:\-–—_]*\s*.*)?\s*$",
     re.IGNORECASE,
 )
 
 
-def normalize_opening_line(line: str) -> str:
-    return re.sub(r"\s+", " ", line.strip().lower())
+def read_text_safe(path: Path) -> str:
+    try:
+        return path.read_text(encoding="utf-8")
+    except UnicodeDecodeError:
+        return path.read_text(encoding="utf-8", errors="ignore")
+
+
+def normalize_spaces(text: str) -> str:
+    return re.sub(r"\s+", " ", text.strip())
 
 
 def normalize_closing_line(line: str) -> str:
     cleaned = re.sub(r"[_=*~\-–—#.`'\":;,\[\]\(\)\{\}|\\/<>]+", " ", line)
-    return re.sub(r"\s+", " ", cleaned).strip().lower()
+    return normalize_spaces(cleaned).lower()
 
 
-def is_blank_line(line: str) -> bool:
-    return line.strip() == ""
+def relative_position(idx: int, total_lines: int) -> float:
+    if total_lines <= 1:
+        return 0.0
+    return idx / (total_lines - 1)
 
 
-def looks_like_chapter_heading(line: str) -> bool:
-    return CHAPTER_HEADING_PATTERN.match(line.strip()) is not None
+def looks_like_chapter_i_opening(line: str) -> bool:
+    return CHAPTER_I_OPENING_RE.match(line.strip()) is not None
 
 
-def is_probable_toc(lines: list[str], opening_idx: int, window: int = 20, min_hits: int = 3) -> bool:
-    hits = 0
-    checked = 0
+def looks_like_chapter_entry(line: str) -> bool:
+    return CHAPTER_ENTRY_RE.match(line.strip()) is not None
 
-    for i in range(opening_idx + 1, len(lines)):
-        line = lines[i].strip()
 
-        if not line:
-            continue
+def looks_like_disallowed_structure(line: str) -> bool:
+    return DISALLOWED_STRUCTURE_RE.match(line.strip()) is not None
 
-        checked += 1
 
-        if looks_like_chapter_heading(line):
-            hits += 1
+def has_disallowed_structure(lines: list[str]) -> bool:
+    for line in lines:
+        if looks_like_disallowed_structure(line):
+            return True
+    return False
 
-        if checked >= window:
-            break
 
-    return hits >= min_hits
+def next_nonempty_indices(lines: list[str], start_idx: int, limit: int) -> list[int]:
+    indices: list[int] = []
+
+    for i in range(start_idx + 1, len(lines)):
+        if lines[i].strip():
+            indices.append(i)
+            if len(indices) >= limit:
+                break
+
+    return indices
+
+
+def chapter_entry_count_after(
+    lines: list[str],
+    opening_idx: int,
+    window: int = TOC_WINDOW_NONEMPTY_LINES,
+) -> int:
+    count = 0
+
+    for idx in next_nonempty_indices(lines, opening_idx, window):
+        if looks_like_chapter_entry(lines[idx]):
+            count += 1
+
+    return count
+
+
+def is_toc_opening(
+    lines: list[str],
+    opening_idx: int,
+    window: int = TOC_WINDOW_NONEMPTY_LINES,
+    min_count: int = TOC_MIN_CHAPTER_ENTRY_COUNT,
+) -> bool:
+    return chapter_entry_count_after(lines, opening_idx, window) >= min_count
+
+
+def is_valid_opening_position(idx: int, total_lines: int) -> bool:
+    rel = relative_position(idx, total_lines)
+    return OPENING_MIN_RELATIVE_POSITION <= rel <= OPENING_MAX_RELATIVE_POSITION
 
 
 def find_opening_anchor(lines: list[str]) -> tuple[Optional[int], str]:
-    valid_matches: list[int] = []
-    toc_like_matches: list[int] = []
+    if has_disallowed_structure(lines):
+        return None, "has_disallowed_structure"
+
+    chapter_i_indices: list[int] = []
 
     for i, line in enumerate(lines):
-        if not OPENING_PATTERN.match(line.strip()):
-            continue
+        if looks_like_chapter_i_opening(line) and is_valid_opening_position(i, len(lines)):
+            chapter_i_indices.append(i)
 
-        if is_probable_toc(lines, i):
-            toc_like_matches.append(i)
-            continue
-
-        valid_matches.append(i)
-
-    if len(valid_matches) == 1:
-        return valid_matches[0], "ok"
-
-    if len(valid_matches) == 0:
-        if len(toc_like_matches) > 0:
-            return None, "opening_is_toc"
+    if not chapter_i_indices:
         return None, "no_valid_opening"
 
-    return None, "too_many_openings"
+    valid_openings: list[int] = []
+
+    for idx in chapter_i_indices:
+        if not is_toc_opening(lines, idx):
+            valid_openings.append(idx)
+
+    if not valid_openings:
+        return None, "only_toc_openings"
+
+    if len(valid_openings) > 1:
+        return None, "too_many_openings"
+
+    return valid_openings[0], "ok"
+
+
+def is_valid_closing_anchor(lines: list[str], idx: int) -> bool:
+    if normalize_closing_line(lines[idx]) != "the end":
+        return False
+
+    rel = relative_position(idx, len(lines))
+    return rel >= CLOSING_MIN_RELATIVE_POSITION
 
 
 def find_closing_anchor(lines: list[str], start_idx: int) -> tuple[Optional[int], str]:
-    matches: list[int] = []
+    match_indices: list[int] = []
 
     for i in range(start_idx, len(lines)):
-        if normalize_closing_line(lines[i]) != "the end":
-            continue
+        if is_valid_closing_anchor(lines, i):
+            match_indices.append(i)
 
-        if i == 0 or i == len(lines) - 1:
-            continue
-
-        if is_blank_line(lines[i - 1]) and is_blank_line(lines[i + 1]):
-            matches.append(i)
-
-    if len(matches) == 0:
+    if not match_indices:
         return None, "no_valid_closing"
-    if len(matches) == 1:
-        return matches[0], "ok"
-    return None, "multiple_valid_closings"
+
+    return match_indices[-1], "ok"
 
 
 def bound_text(text: str) -> tuple[Optional[str], str]:
     lines = text.splitlines()
+
+    if not lines:
+        return None, "empty_file"
 
     start_idx, opening_status = find_opening_anchor(lines)
     if start_idx is None:
@@ -117,13 +180,9 @@ def bound_text(text: str) -> tuple[Optional[str], str]:
 
 
 def process_file(input_path: Path, output_path: Path) -> str:
-    try:
-        text = input_path.read_text(encoding="utf-8")
-    except UnicodeDecodeError:
-        text = input_path.read_text(encoding="utf-8", errors="ignore")
+    text = read_text_safe(input_path)
 
     bounded, status = bound_text(text)
-
     if bounded is None:
         return status
 
